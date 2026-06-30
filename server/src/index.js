@@ -2,6 +2,9 @@ import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
 import {
   createRoom,
@@ -11,6 +14,9 @@ import {
   addMessage,
 } from './rooms.js';
 import { analyzeForIntervention } from './mediator.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDist = path.join(__dirname, '../../client/dist');
 
 const app = express();
 app.use(cors());
@@ -26,6 +32,15 @@ app.get('/api/rooms/:id', (req, res) => {
   if (!room) return res.status(404).json({ error: 'Room not found' });
   res.json({ roomId: room.id, userCount: room.users.length });
 });
+
+// When the client has been built (production deploys), serve it from the
+// same service so the app is reachable from a single URL/port.
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
